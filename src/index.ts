@@ -98,6 +98,46 @@ function createScenarios(r2Client: R2Client): BenchmarkScenario[] {
         iterations: 1,
         warmupIterations: 0,
       }
+    },
+    {
+      name: 'get-then-put-if-match',
+      description: 'GET JSON object with ETag, then PUT new version with If-Match header',
+      setup: async () => {
+        // Create initial JSON object
+        const key = 'conditional-update-test';
+        const jsonData = r2Client.generateTestJson(1);
+        await r2Client.putObject(key, jsonData);
+      },
+      run: async () => {
+        const key = 'conditional-update-test';
+
+        // GET the object with ETag
+        const { body, etag } = await r2Client.getObjectWithETag(key);
+        const currentData = JSON.parse(body.toString());
+
+        // Create updated JSON
+        const updatedData = {
+          ...currentData,
+          id: currentData.id + 1,
+          timestamp: new Date().toISOString(),
+          data: `updated-data-${currentData.id + 1}`,
+          metadata: {
+            ...currentData.metadata,
+            version: currentData.metadata.version + 1,
+            updated: Date.now()
+          }
+        };
+
+        // PUT with If-Match header
+        await r2Client.putObjectWithIfMatch(key, JSON.stringify(updatedData), etag);
+      },
+      cleanup: async () => {
+        await r2Client.deleteObject('conditional-update-test');
+      },
+      config: {
+        iterations: 10,
+        warmupIterations: 0,
+      }
     }
   ];
 }
@@ -105,33 +145,33 @@ function createScenarios(r2Client: R2Client): BenchmarkScenario[] {
 async function runBenchmark(scenarioNames?: string[]) {
   try {
     console.log('🚀 Starting R2 Benchmark Suite\n');
-    
+
     // Load and validate configuration
     const config = loadR2Config();
     validateR2Config(config);
-    
+
     // Initialize components
     const r2Client = new R2Client(config);
     const runner = new BenchmarkRunner();
     const storage = new ResultStorage();
-    
+
     // Get scenarios to run
     const allScenarios = createScenarios(r2Client);
     const scenariosToRun = scenarioNames && scenarioNames.length > 0
       ? allScenarios.filter(s => scenarioNames.includes(s.name))
       : allScenarios;
-    
+
     if (scenariosToRun.length === 0) {
       console.error('❌ No scenarios found to run');
       process.exit(1);
     }
-    
+
     console.log(`📋 Running ${scenariosToRun.length} scenario(s):`);
     scenariosToRun.forEach(s => console.log(`   - ${s.name}: ${s.description || 'No description'}`));
-    
+
     // Run benchmarks
     const results: BenchmarkResult[] = [];
-    
+
     for (const scenario of scenariosToRun) {
       try {
         const result = await runner.runScenario(scenario);
@@ -142,18 +182,18 @@ async function runBenchmark(scenarioNames?: string[]) {
         console.error(`❌ Failed to run scenario ${scenario.name}:`, error);
       }
     }
-    
+
     // Save summary results
     if (results.length > 0) {
       storage.saveResults(results);
       storage.saveSummaryReport(results);
       storage.saveCsvReport(results);
-      
+
       console.log(`\n✅ Benchmark complete! ${results.length} scenarios completed.`);
     } else {
       console.log('❌ No scenarios completed successfully.');
     }
-    
+
   } catch (error) {
     console.error('❌ Benchmark failed:', error);
     process.exit(1);

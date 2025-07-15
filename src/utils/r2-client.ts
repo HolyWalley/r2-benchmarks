@@ -27,6 +27,16 @@ export class R2Client {
     await this.client.send(command);
   }
 
+  async putObjectWithIfMatch(key: string, body: Buffer | Uint8Array | string, ifMatch: string): Promise<void> {
+    const command = new PutObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+      Body: body,
+      IfMatch: ifMatch,
+    });
+    await this.client.send(command);
+  }
+
   async putObjectMultipart(key: string, body: Buffer | Uint8Array | string): Promise<void> {
     const upload = new Upload({
       client: this.client,
@@ -58,6 +68,30 @@ export class R2Client {
     }
     
     return Buffer.concat(chunks);
+  }
+
+  async getObjectWithETag(key: string): Promise<{ body: Buffer; etag: string }> {
+    const command = new GetObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+    });
+    const response = await this.client.send(command);
+
+    if (!response.Body) {
+      throw new Error('No body in response');
+    }
+
+    const chunks: Uint8Array[] = [];
+    const stream = response.Body as any;
+
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+
+    return {
+      body: Buffer.concat(chunks),
+      etag: response.ETag || ''
+    };
   }
 
   async deleteObject(key: string): Promise<void> {
@@ -100,5 +134,17 @@ export class R2Client {
 
   generateRandomKey(prefix: string = 'test'): string {
     return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  generateTestJson(id: number): string {
+    return JSON.stringify({
+      id,
+      timestamp: new Date().toISOString(),
+      data: `test-data-${id}`,
+      metadata: {
+        version: 1,
+        created: Date.now()
+      }
+    });
   }
 }
