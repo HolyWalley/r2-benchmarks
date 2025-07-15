@@ -57,6 +57,40 @@ export class WorkerClient {
     return results[0];
   }
 
+  async upsertObjects(objects: { key: string; data: any }[]): Promise<{
+    key: string;
+    success: boolean;
+    merged: boolean;
+    etag?: string;
+    error?: string;
+  }[]> {
+    const response = await fetch(`${this.workerUrl}/upsert`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ objects }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Worker UPSERT failed: ${response.status} ${await response.text()}`);
+    }
+
+    const result = await response.json() as { results: any[] };
+    return result.results;
+  }
+
+  async upsertObject(key: string, data: any): Promise<{
+    key: string;
+    success: boolean;
+    merged: boolean;
+    etag?: string;
+    error?: string;
+  }> {
+    const results = await this.upsertObjects([{ key, data }]);
+    return results[0];
+  }
+
   async healthCheck(): Promise<boolean> {
     try {
       const response = await fetch(`${this.workerUrl}/health`);

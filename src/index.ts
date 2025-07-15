@@ -363,7 +363,7 @@ function createScenarios(r2Client: R2Client, workerClient?: WorkerClient): Bench
       },
       {
         name: 'worker-get-then-put-if-match',
-        description: 'GET JSON object with ETag, then PUT new version with If-Match header via Worker',
+        description: 'UPSERT JSON object with ETag handling via Worker',
         setup: async () => {
           const key = 'worker-conditional-update-test';
           const jsonData = workerClient.generateTestJson(1);
@@ -372,29 +372,22 @@ function createScenarios(r2Client: R2Client, workerClient?: WorkerClient): Bench
         run: async () => {
           const key = 'worker-conditional-update-test';
           
-          // GET the object with ETag
-          const result = await workerClient.getObject(key, true);
-          if (!result.found || !result.data || !result.etag) {
-            throw new Error('Object not found or missing ETag');
-          }
-          
-          const currentData = JSON.parse(result.data);
-          
-          // Create updated JSON
-          const updatedData = {
-            ...currentData,
-            id: currentData.id + 1,
+          // Update data to merge with existing object
+          const updateData = {
+            id: Math.floor(Math.random() * 1000) + 100,
             timestamp: new Date().toISOString(),
-            data: `updated-data-${currentData.id + 1}`,
+            data: `updated-data-${Date.now()}`,
             metadata: {
-              ...currentData.metadata,
-              version: currentData.metadata.version + 1,
+              version: Math.floor(Math.random() * 10) + 2,
               updated: Date.now()
             }
           };
           
-          // PUT with If-Match header
-          await workerClient.putObject(key, JSON.stringify(updatedData), result.etag);
+          // UPSERT operation handles get-merge-put with ETag automatically
+          const result = await workerClient.upsertObject(key, updateData);
+          if (!result.success) {
+            throw new Error(`Upsert failed: ${result.error}`);
+          }
         },
         cleanup: async () => {
           await r2Client.deleteObject('worker-conditional-update-test');

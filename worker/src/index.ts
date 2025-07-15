@@ -137,6 +137,67 @@ export default {
         });
       }
 
+      // UPSERT objects (get-merge-put with etag)
+      if (path === '/upsert' && request.method === 'POST') {
+        const body = await request.json() as { 
+          objects: { key: string; data: any }[] 
+        };
+        
+        const results = [];
+        for (const obj of body.objects) {
+          try {
+            // Get existing object with etag
+            const existingObj = await env.R2_BUCKET.get(obj.key);
+            let mergedData = obj.data;
+            let ifMatch: string | undefined;
+            
+            if (existingObj) {
+              // Object exists, merge with existing data
+              const existingData = await existingObj.text();
+              try {
+                const existingJson = JSON.parse(existingData);
+                mergedData = { ...existingJson, ...obj.data };
+                ifMatch = existingObj.etag;
+              } catch (e) {
+                // If existing data is not JSON, replace it entirely
+                mergedData = obj.data;
+                ifMatch = existingObj.etag;
+              }
+            }
+            
+            // Put merged data with ifMatch if object existed
+            const options = ifMatch ? {
+              httpMetadata: { ifMatch }
+            } : undefined;
+            
+            await withSemaphore(semaphore, () => 
+              env.R2_BUCKET.put(obj.key, JSON.stringify(mergedData), options)
+            );
+            
+            results.push({ 
+              key: obj.key, 
+              success: true, 
+              merged: !!existingObj,
+              etag: ifMatch 
+            });
+          } catch (error) {
+            results.push({ 
+              key: obj.key, 
+              success: false, 
+              error: error instanceof Error ? error.message : 'Unknown error' 
+            });
+          }
+        }
+        
+        return new Response(JSON.stringify({ 
+          success: true,
+          count: results.length,
+          results: results
+        }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
       // Health check
       if (path === '/health') {
         return new Response('OK', { headers: corsHeaders });
