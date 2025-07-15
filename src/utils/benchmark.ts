@@ -4,7 +4,7 @@ export class BenchmarkRunner {
   private defaultConfig: BenchmarkConfig = {
     name: 'default',
     iterations: 10,
-    warmupIterations: 2,
+    warmupIterations: 0,
     timeout: 30000
   };
 

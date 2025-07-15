@@ -6,7 +6,7 @@ import { R2Client } from './utils/r2-client';
 import { BenchmarkScenario, BenchmarkResult } from './types';
 
 // Example scenarios - you can define your own scenarios here
-function createExampleScenarios(r2Client: R2Client): BenchmarkScenario[] {
+function createScenarios(r2Client: R2Client): BenchmarkScenario[] {
   return [
     {
       name: 'put-single-object',
@@ -22,6 +22,10 @@ function createExampleScenarios(r2Client: R2Client): BenchmarkScenario[] {
         for (const key of objects) {
           await r2Client.deleteObject(key);
         }
+      },
+      config: {
+        iterations: 10,
+        warmupIterations: 0,
       }
     },
     {
@@ -38,6 +42,61 @@ function createExampleScenarios(r2Client: R2Client): BenchmarkScenario[] {
       },
       cleanup: async () => {
         await r2Client.deleteObject('get-test-object');
+      },
+      config: {
+        iterations: 10,
+        warmupIterations: 0,
+      }
+    },
+    {
+      name: 'read-20-objects',
+      description: 'Read 10 objects of 1KB each',
+      setup: async () => {
+        // Create 20 test objects
+        for (let i = 0; i < 10; i++) {
+          const key = `read-test-object-${i}`;
+          const data = r2Client.generateTestData(1024);
+          await r2Client.putObject(key, data);
+        }
+      },
+      run: async () => {
+        for (let i = 0; i < 10; i++) {
+          const key = `read-test-object-${i}`;
+          await r2Client.getObject(key);
+        }
+      },
+      cleanup: async () => {
+        // Clean up test objects
+        const objects = await r2Client.listObjects('read-test-object-');
+        for (const key of objects) {
+          await r2Client.deleteObject(key);
+        }
+      },
+      config: {
+        iterations: 1,
+        warmupIterations: 0,
+      }
+    },
+    {
+      name: 'put-10-objects',
+      description: 'Upload 10 objects of 1KB each',
+      run: async () => {
+        for (let i = 0; i < 10; i++) {
+          const key = `put-test-object-${i}`;
+          const data = r2Client.generateTestData(1024);
+          await r2Client.putObject(key, data);
+        }
+      },
+      cleanup: async () => {
+        // Clean up test objects
+        const objects = await r2Client.listObjects('put-test-object-');
+        for (const key of objects) {
+          await r2Client.deleteObject(key);
+        }
+      },
+      config: {
+        iterations: 1,
+        warmupIterations: 0,
       }
     }
   ];
@@ -57,7 +116,7 @@ async function runBenchmark(scenarioNames?: string[]) {
     const storage = new ResultStorage();
     
     // Get scenarios to run
-    const allScenarios = createExampleScenarios(r2Client);
+    const allScenarios = createScenarios(r2Client);
     const scenariosToRun = scenarioNames && scenarioNames.length > 0
       ? allScenarios.filter(s => scenarioNames.includes(s.name))
       : allScenarios;
@@ -122,7 +181,7 @@ program
     console.log('Available scenarios:');
     const config = loadR2Config();
     const r2Client = new R2Client(config);
-    const scenarios = createExampleScenarios(r2Client);
+    const scenarios = createScenarios(r2Client);
     scenarios.forEach(s => {
       console.log(`  ${s.name}: ${s.description || 'No description'}`);
     });
