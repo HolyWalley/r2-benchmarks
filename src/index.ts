@@ -147,6 +147,124 @@ function createScenarios(r2Client: R2Client, workerClient?: WorkerClient): Bench
         iterations: 10,
         warmupIterations: 0,
       }
+    },
+    {
+      name: 'get-50-objects',
+      description: 'Download 50 objects of 1KB each concurrently',
+      setup: async () => {
+        // Create 50 test objects concurrently
+        const promises = [];
+        for (let i = 0; i < 50; i++) {
+          const key = `get-50-test-object-${i}`;
+          const data = r2Client.generateTestData(1024);
+          promises.push(r2Client.putObject(key, data));
+        }
+        await Promise.all(promises);
+      },
+      run: async () => {
+        // Read 50 objects concurrently
+        const promises = [];
+        for (let i = 0; i < 50; i++) {
+          const key = `get-50-test-object-${i}`;
+          promises.push(r2Client.getObject(key));
+        }
+        await Promise.all(promises);
+      },
+      cleanup: async () => {
+        // Clean up test objects
+        const objects = await r2Client.listObjects('get-50-test-object-');
+        for (const key of objects) {
+          await r2Client.deleteObject(key);
+        }
+      },
+      config: {
+        iterations: 1,
+        warmupIterations: 0,
+      }
+    },
+    {
+      name: 'put-50-objects',
+      description: 'Upload 50 objects of 1KB each concurrently',
+      run: async () => {
+        // Upload 50 objects concurrently
+        const promises = [];
+        for (let i = 0; i < 50; i++) {
+          const key = `put-50-test-object-${i}`;
+          const data = r2Client.generateTestData(1024);
+          promises.push(r2Client.putObject(key, data));
+        }
+        await Promise.all(promises);
+      },
+      cleanup: async () => {
+        // Clean up test objects
+        const objects = await r2Client.listObjects('put-50-test-object-');
+        for (const key of objects) {
+          await r2Client.deleteObject(key);
+        }
+      },
+      config: {
+        iterations: 1,
+        warmupIterations: 0,
+      }
+    },
+    {
+      name: 'get-100-objects',
+      description: 'Download 100 objects of 1KB each concurrently',
+      setup: async () => {
+        // Create 100 test objects concurrently
+        const promises = [];
+        for (let i = 0; i < 100; i++) {
+          const key = `get-100-test-object-${i}`;
+          const data = r2Client.generateTestData(1024);
+          promises.push(r2Client.putObject(key, data));
+        }
+        await Promise.all(promises);
+      },
+      run: async () => {
+        // Read 100 objects concurrently
+        const promises = [];
+        for (let i = 0; i < 100; i++) {
+          const key = `get-100-test-object-${i}`;
+          promises.push(r2Client.getObject(key));
+        }
+        await Promise.all(promises);
+      },
+      cleanup: async () => {
+        // Clean up test objects
+        const objects = await r2Client.listObjects('get-100-test-object-');
+        for (const key of objects) {
+          await r2Client.deleteObject(key);
+        }
+      },
+      config: {
+        iterations: 1,
+        warmupIterations: 0,
+      }
+    },
+    {
+      name: 'put-100-objects',
+      description: 'Upload 100 objects of 1KB each concurrently',
+      run: async () => {
+        // Upload 100 objects concurrently
+        const promises = [];
+        for (let i = 0; i < 100; i++) {
+          const key = `put-100-test-object-${i}`;
+          const data = r2Client.generateTestData(1024);
+          promises.push(r2Client.putObject(key, data));
+        }
+        await Promise.all(promises);
+      },
+      cleanup: async () => {
+        // Clean up test objects
+        const objects = await r2Client.listObjects('put-100-test-object-');
+        for (const key of objects) {
+          await r2Client.deleteObject(key);
+        }
+      },
+      config: {
+        iterations: 1,
+        warmupIterations: 0,
+      }
     }
   ];
 
