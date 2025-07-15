@@ -1,0 +1,13 @@
+{
+  "name": "r2-benchmark-worker",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240614.0",
+    "wrangler": "^3.60.3"
+  }
+}

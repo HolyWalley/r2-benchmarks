@@ -1,13 +1,14 @@
 import { program } from 'commander';
 import { BenchmarkRunner } from './utils/benchmark';
 import { ResultStorage } from './utils/result-storage';
-import { loadR2Config, validateR2Config } from './utils/config';
+import { loadR2Config, validateR2Config, loadWorkerUrl } from './utils/config';
 import { R2Client } from './utils/r2-client';
+import { WorkerClient } from './utils/worker-client';
 import { BenchmarkScenario, BenchmarkResult } from './types';
 
 // Example scenarios - you can define your own scenarios here
-function createScenarios(r2Client: R2Client): BenchmarkScenario[] {
-  return [
+function createScenarios(r2Client: R2Client, workerClient?: WorkerClient): BenchmarkScenario[] {
+  const scenarios: BenchmarkScenario[] = [
     {
       name: 'put-single-object',
       description: 'Upload a single 1KB object',
@@ -49,25 +50,30 @@ function createScenarios(r2Client: R2Client): BenchmarkScenario[] {
       }
     },
     {
-      name: 'read-20-objects',
-      description: 'Read 10 objects of 1KB each',
+      name: 'get-10-objects',
+      description: 'Download 10 objects of 1KB each concurrently',
       setup: async () => {
-        // Create 20 test objects
+        // Create 10 test objects concurrently
+        const promises = [];
         for (let i = 0; i < 10; i++) {
-          const key = `read-test-object-${i}`;
+          const key = `get-test-object-${i}`;
           const data = r2Client.generateTestData(1024);
-          await r2Client.putObject(key, data);
+          promises.push(r2Client.putObject(key, data));
         }
+        await Promise.all(promises);
       },
       run: async () => {
+        // Read 10 objects concurrently
+        const promises = [];
         for (let i = 0; i < 10; i++) {
-          const key = `read-test-object-${i}`;
-          await r2Client.getObject(key);
+          const key = `get-test-object-${i}`;
+          promises.push(r2Client.getObject(key));
         }
+        await Promise.all(promises);
       },
       cleanup: async () => {
         // Clean up test objects
-        const objects = await r2Client.listObjects('read-test-object-');
+        const objects = await r2Client.listObjects('get-test-object-');
         for (const key of objects) {
           await r2Client.deleteObject(key);
         }
@@ -79,13 +85,16 @@ function createScenarios(r2Client: R2Client): BenchmarkScenario[] {
     },
     {
       name: 'put-10-objects',
-      description: 'Upload 10 objects of 1KB each',
+      description: 'Upload 10 objects of 1KB each concurrently',
       run: async () => {
+        // Upload 10 objects concurrently
+        const promises = [];
         for (let i = 0; i < 10; i++) {
           const key = `put-test-object-${i}`;
           const data = r2Client.generateTestData(1024);
-          await r2Client.putObject(key, data);
+          promises.push(r2Client.putObject(key, data));
         }
+        await Promise.all(promises);
       },
       cleanup: async () => {
         // Clean up test objects
@@ -140,6 +149,147 @@ function createScenarios(r2Client: R2Client): BenchmarkScenario[] {
       }
     }
   ];
+
+  // Add worker scenarios if worker client is available
+  if (workerClient) {
+    scenarios.push(
+      {
+        name: 'worker-put-single-object',
+        description: 'Upload a single 1KB object via Worker',
+        run: async () => {
+          const key = workerClient.generateRandomKey('worker-single');
+          const data = workerClient.generateTestData(1024);
+          await workerClient.putObject(key, data);
+        },
+        cleanup: async () => {
+          const objects = await r2Client.listObjects('worker-single');
+          for (const key of objects) {
+            await r2Client.deleteObject(key);
+          }
+        },
+        config: {
+          iterations: 10,
+          warmupIterations: 0,
+        }
+      },
+      {
+        name: 'worker-get-single-object',
+        description: 'Download a single 1KB object via Worker',
+        setup: async () => {
+          const key = 'worker-get-test-object';
+          const data = workerClient.generateTestData(1024);
+          await workerClient.putObject(key, data);
+        },
+        run: async () => {
+          await workerClient.getObject('worker-get-test-object');
+        },
+        cleanup: async () => {
+          await r2Client.deleteObject('worker-get-test-object');
+        },
+        config: {
+          iterations: 10,
+          warmupIterations: 0,
+        }
+      },
+      {
+        name: 'worker-put-10-objects',
+        description: 'Upload 10 objects of 1KB each via Worker',
+        run: async () => {
+          const objects = [];
+          for (let i = 0; i < 10; i++) {
+            objects.push({
+              key: workerClient.generateRandomKey('worker-batch'),
+              data: workerClient.generateTestData(1024)
+            });
+          }
+          await workerClient.putObjects(objects);
+        },
+        cleanup: async () => {
+          const objects = await r2Client.listObjects('worker-batch');
+          for (const key of objects) {
+            await r2Client.deleteObject(key);
+          }
+        },
+        config: {
+          iterations: 1,
+          warmupIterations: 0,
+        }
+      },
+      {
+        name: 'worker-get-10-objects',
+        description: 'Download 10 objects of 1KB each via Worker',
+        setup: async () => {
+          const objects = [];
+          for (let i = 0; i < 10; i++) {
+            objects.push({
+              key: `worker-get-batch-${i}`,
+              data: workerClient.generateTestData(1024)
+            });
+          }
+          await workerClient.putObjects(objects);
+        },
+        run: async () => {
+          const keys = Array.from({length: 10}, (_, i) => `worker-get-batch-${i}`);
+          await workerClient.getObjects(keys);
+        },
+        cleanup: async () => {
+          const objects = await r2Client.listObjects('worker-get-batch-');
+          for (const key of objects) {
+            await r2Client.deleteObject(key);
+          }
+        },
+        config: {
+          iterations: 1,
+          warmupIterations: 0,
+        }
+      },
+      {
+        name: 'worker-get-then-put-if-match',
+        description: 'GET JSON object with ETag, then PUT new version with If-Match header via Worker',
+        setup: async () => {
+          const key = 'worker-conditional-update-test';
+          const jsonData = workerClient.generateTestJson(1);
+          await workerClient.putObject(key, jsonData);
+        },
+        run: async () => {
+          const key = 'worker-conditional-update-test';
+          
+          // GET the object with ETag
+          const result = await workerClient.getObject(key, true);
+          if (!result.found || !result.data || !result.etag) {
+            throw new Error('Object not found or missing ETag');
+          }
+          
+          const currentData = JSON.parse(result.data);
+          
+          // Create updated JSON
+          const updatedData = {
+            ...currentData,
+            id: currentData.id + 1,
+            timestamp: new Date().toISOString(),
+            data: `updated-data-${currentData.id + 1}`,
+            metadata: {
+              ...currentData.metadata,
+              version: currentData.metadata.version + 1,
+              updated: Date.now()
+            }
+          };
+          
+          // PUT with If-Match header
+          await workerClient.putObject(key, JSON.stringify(updatedData), result.etag);
+        },
+        cleanup: async () => {
+          await r2Client.deleteObject('worker-conditional-update-test');
+        },
+        config: {
+          iterations: 10,
+          warmupIterations: 0,
+        }
+      }
+    );
+  }
+
+  return scenarios;
 }
 
 async function runBenchmark(scenarioNames?: string[]) {
@@ -155,8 +305,23 @@ async function runBenchmark(scenarioNames?: string[]) {
     const runner = new BenchmarkRunner();
     const storage = new ResultStorage();
 
+    // Initialize worker client if URL is provided
+    const workerUrl = loadWorkerUrl();
+    let workerClient: WorkerClient | undefined;
+    if (workerUrl) {
+      workerClient = new WorkerClient(workerUrl);
+      // Test worker connectivity
+      const isHealthy = await workerClient.healthCheck();
+      if (!isHealthy) {
+        console.warn('⚠️  Worker health check failed, worker scenarios will be skipped');
+        workerClient = undefined;
+      } else {
+        console.log('✅ Worker client connected successfully');
+      }
+    }
+
     // Get scenarios to run
-    const allScenarios = createScenarios(r2Client);
+    const allScenarios = createScenarios(r2Client, workerClient);
     const scenariosToRun = scenarioNames && scenarioNames.length > 0
       ? allScenarios.filter(s => scenarioNames.includes(s.name))
       : allScenarios;
@@ -217,11 +382,22 @@ program
 program
   .command('list')
   .description('List available scenarios')
-  .action(() => {
+  .action(async () => {
     console.log('Available scenarios:');
     const config = loadR2Config();
     const r2Client = new R2Client(config);
-    const scenarios = createScenarios(r2Client);
+    
+    const workerUrl = loadWorkerUrl();
+    let workerClient: WorkerClient | undefined;
+    if (workerUrl) {
+      workerClient = new WorkerClient(workerUrl);
+      const isHealthy = await workerClient.healthCheck();
+      if (!isHealthy) {
+        workerClient = undefined;
+      }
+    }
+    
+    const scenarios = createScenarios(r2Client, workerClient);
     scenarios.forEach(s => {
       console.log(`  ${s.name}: ${s.description || 'No description'}`);
     });

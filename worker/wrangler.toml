@@ -1,0 +1,10 @@
+name = "r2-benchmark-worker"
+main = "src/index.ts"
+compatibility_date = "2024-07-01"
+
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "r2-bench"  # Replace with your actual bucket name
+
+[vars]
+ALLOWED_ORIGIN = "*"  # Restrict this in production

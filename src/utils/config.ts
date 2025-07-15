@@ -27,6 +27,10 @@ export function loadR2Config(): R2Config {
   };
 }
 
+export function loadWorkerUrl(): string | undefined {
+  return process.env.WORKER_URL;
+}
+
 export function validateR2Config(config: R2Config): void {
   if (!config.endpoint.startsWith('https://')) {
     throw new Error('R2_ENDPOINT must start with https://');
