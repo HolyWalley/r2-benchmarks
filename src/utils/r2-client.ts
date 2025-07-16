@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, DeleteObjectsCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import { R2Config } from '../types';
 
@@ -100,6 +100,26 @@ export class R2Client {
       Key: key,
     });
     await this.client.send(command);
+  }
+
+  async deleteObjects(keys: string[]): Promise<void> {
+    if (keys.length === 0) return;
+    
+    // AWS S3 DeleteObjects supports up to 1000 keys per request
+    const chunks = [];
+    for (let i = 0; i < keys.length; i += 1000) {
+      chunks.push(keys.slice(i, i + 1000));
+    }
+    
+    for (const chunk of chunks) {
+      const command = new DeleteObjectsCommand({
+        Bucket: this.bucketName,
+        Delete: {
+          Objects: chunk.map(key => ({ Key: key })),
+        },
+      });
+      await this.client.send(command);
+    }
   }
 
   async listObjects(prefix?: string, maxKeys?: number): Promise<string[]> {

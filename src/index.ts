@@ -20,9 +20,7 @@ function createScenarios(r2Client: R2Client, workerClient?: WorkerClient): Bench
       cleanup: async () => {
         // Clean up test objects
         const objects = await r2Client.listObjects('single-put');
-        for (const key of objects) {
-          await r2Client.deleteObject(key);
-        }
+        await r2Client.deleteObjects(objects);
       },
       config: {
         iterations: 10,
@@ -74,9 +72,7 @@ function createScenarios(r2Client: R2Client, workerClient?: WorkerClient): Bench
       cleanup: async () => {
         // Clean up test objects
         const objects = await r2Client.listObjects('get-test-object-');
-        for (const key of objects) {
-          await r2Client.deleteObject(key);
-        }
+        await r2Client.deleteObjects(objects);
       },
       config: {
         iterations: 1,
@@ -99,9 +95,7 @@ function createScenarios(r2Client: R2Client, workerClient?: WorkerClient): Bench
       cleanup: async () => {
         // Clean up test objects
         const objects = await r2Client.listObjects('put-test-object-');
-        for (const key of objects) {
-          await r2Client.deleteObject(key);
-        }
+        await r2Client.deleteObjects(objects);
       },
       config: {
         iterations: 1,
@@ -173,9 +167,7 @@ function createScenarios(r2Client: R2Client, workerClient?: WorkerClient): Bench
       cleanup: async () => {
         // Clean up test objects
         const objects = await r2Client.listObjects('get-50-test-object-');
-        for (const key of objects) {
-          await r2Client.deleteObject(key);
-        }
+        await r2Client.deleteObjects(objects);
       },
       config: {
         iterations: 1,
@@ -198,9 +190,7 @@ function createScenarios(r2Client: R2Client, workerClient?: WorkerClient): Bench
       cleanup: async () => {
         // Clean up test objects
         const objects = await r2Client.listObjects('put-50-test-object-');
-        for (const key of objects) {
-          await r2Client.deleteObject(key);
-        }
+        await r2Client.deleteObjects(objects);
       },
       config: {
         iterations: 1,
@@ -232,9 +222,7 @@ function createScenarios(r2Client: R2Client, workerClient?: WorkerClient): Bench
       cleanup: async () => {
         // Clean up test objects
         const objects = await r2Client.listObjects('get-100-test-object-');
-        for (const key of objects) {
-          await r2Client.deleteObject(key);
-        }
+        await r2Client.deleteObjects(objects);
       },
       config: {
         iterations: 1,
@@ -257,9 +245,7 @@ function createScenarios(r2Client: R2Client, workerClient?: WorkerClient): Bench
       cleanup: async () => {
         // Clean up test objects
         const objects = await r2Client.listObjects('put-100-test-object-');
-        for (const key of objects) {
-          await r2Client.deleteObject(key);
-        }
+        await r2Client.deleteObjects(objects);
       },
       config: {
         iterations: 1,
@@ -281,9 +267,7 @@ function createScenarios(r2Client: R2Client, workerClient?: WorkerClient): Bench
         },
         cleanup: async () => {
           const objects = await r2Client.listObjects('worker-single');
-          for (const key of objects) {
-            await r2Client.deleteObject(key);
-          }
+          await r2Client.deleteObjects(objects);
         },
         config: {
           iterations: 10,
@@ -324,9 +308,7 @@ function createScenarios(r2Client: R2Client, workerClient?: WorkerClient): Bench
         },
         cleanup: async () => {
           const objects = await r2Client.listObjects('worker-batch');
-          for (const key of objects) {
-            await r2Client.deleteObject(key);
-          }
+          await r2Client.deleteObjects(objects);
         },
         config: {
           iterations: 1,
@@ -352,9 +334,7 @@ function createScenarios(r2Client: R2Client, workerClient?: WorkerClient): Bench
         },
         cleanup: async () => {
           const objects = await r2Client.listObjects('worker-get-batch-');
-          for (const key of objects) {
-            await r2Client.deleteObject(key);
-          }
+          await r2Client.deleteObjects(objects);
         },
         config: {
           iterations: 1,
@@ -371,7 +351,7 @@ function createScenarios(r2Client: R2Client, workerClient?: WorkerClient): Bench
         },
         run: async () => {
           const key = 'worker-conditional-update-test';
-          
+
           // Update data to merge with existing object
           const updateData = {
             id: Math.floor(Math.random() * 1000) + 100,
@@ -382,7 +362,7 @@ function createScenarios(r2Client: R2Client, workerClient?: WorkerClient): Bench
               updated: Date.now()
             }
           };
-          
+
           // UPSERT operation handles get-merge-put with ETag automatically
           const result = await workerClient.upsertObject(key, updateData);
           if (!result.success) {
